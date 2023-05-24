@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="js/jquery-3.6.3.js"></script>
+    <script src="js/chessboard-1.0.0.min.js"></script>
+    <script src="js/chess.js"></script>
+    <link rel="stylesheet" href="css/chessboard-1.0.0.min.css">
+    <title>Ajedrez a voz</title>
+</head>
+<body>
+    <div id="myBoard" style="width: 400px"></div>
+    <label>Status:</label>
+    <div id="status"></div>
+    <label>FEN:</label>
+    <div id="fen"></div>
+    <label>PGN:</label>
+    <div id="pgn"></div>
+    <label>Move:</label>
+	<hr>
+	<button id="startButton">Start speech recognition</button>
+    <input type="text" id="moveInput">
+    <button onclick="makeMove()" id="goButton">Go</button>
+
+
+
+
+    <script>
+	
+	
+		////// CHESS GAME
+
+        var board = null
+        var game = new Chess()
+        var $status = $('#status')
+        var $fen = $('#fen')
+        var $pgn = $('#pgn')
+
+        var inputField = document.getElementById("moveInput")
+        inputField.addEventListener("keypress", () => {
+            if(event.key === "Enter") {
+                document.getElementById("goButton").click();
+            }
+        })
+
+        function makeMove() {
+        var move = $('#moveInput').val();
+        var result = game.move(move);
+        if (result === null) {
+            alert('Invalid move!');
+            return;
+        }
+        board.position(game.fen());
+        updateStatus();
+        inputField.value = "";
+        }
+
+
+        // update the board position after the piece snap
+        // for castling, en passant, pawn promotion
+        function onSnapEnd () {
+        board.position(game.fen())
+        }
+
+        function updateStatus () {
+        var status = ''
+
+        var moveColor = 'White'
+        if (game.turn() === 'b') {
+            moveColor = 'Black'
+        }
+
+        // checkmate?
+        if (game.in_checkmate()) {
+            status = 'Game over, ' + moveColor + ' is in checkmate.'
+        }
+
+        // draw?
+        else if (game.in_draw()) {
+            status = 'Game over, drawn position'
+        }
+
+        // game still on
+        else {
+            status = moveColor + ' to move'
+
+            // check?
+            if (game.in_check()) {
+            status += ', ' + moveColor + ' is in check'
+            }
+        }
+
+        $status.html(status)
+        $fen.html(game.fen())
+        $pgn.html(game.pgn())
+        }
+
+        var config = {
+        draggable: false,
+        position: 'start',
+        onSnapEnd: onSnapEnd
+        }
+        board = Chessboard('myBoard', config)
+
+        updateStatus()
+
+
+
+
+		///// SPEECH RECOGNITION
+
+
+
+
+		// Check if browser supports the Web Speech API
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.continuous = true;
+
+      // Get the button and text box elements
+      const startButton = document.getElementById('startButton');
+      const transcriptTextBox = document.getElementById('moveInput');
+
+      // Mapping of spoken words to abbreviations
+      const wordMapping = {
+        'Rook': 'R',
+        'Bishop': 'B',
+        'Knight': 'N',
+		'Night': 'N',
+		'Nite': 'N',
+        'Queen': 'Q',
+        'King': 'K',
+		'rook': 'R',
+        'bishop': 'B',
+        'knight': 'N',
+		'night': 'N',
+		'nite': 'N',
+        'queen': 'Q',
+        'king': 'K',
+		'takes': 'x',
+		'short Castle': 'O-O',
+		'long Castle': 'O-O-O'
+      };
+
+      // Regular expression pattern to match chess pieces and coordinates
+      const chessPattern = /\b(?:Rook|Bishop|Knight|Night|Nite|Queen|King|rook|bishop|knight|night|nite|queen|king|takes|(short|long) Castle|[A-H][1-8])\b/g;
+
+      // Event handler for the button click
+      startButton.addEventListener('click', function() {
+        // Start recognition
+        recognition.start();
+        startButton.disabled = true;
+        transcriptTextBox.value = '';
+      });
+
+      recognition.onresult = function(event) {
+        const transcript = event.results[event.results.length - 1][0].transcript;
+
+        // Process transcript and replace spoken words with abbreviations
+		console.log(transcript)
+        const processedTranscript = transcript.match(chessPattern)
+          .map(match => wordMapping[match] || match.toLowerCase())
+          .join('');
+		  
+        transcriptTextBox.value = processedTranscript;
+		
+		// Upload move if the input is a valid Move
+		
+		if(/^((?:[NBRQK]([a-h1-8])?x?(?!\2)[a-h](?!\2)[1-8]|[NBRQK]x?[a-h][1-8]|(?:[a-h]x)?[a-h](?:[1-8](?:\(ep\))?|[18]=[NBRQ])|(?:O-){1,2}O)\+{0,2})$/.test(transcriptTextBox.value)) {
+			makeMove();
+		}
+      };
+
+
+
+      recognition.onerror = function(event) {
+        console.error('Speech recognition error:', event.error);
+      };
+    } else {
+      console.error('Web Speech API is not supported in this browser.');
+    }
+
+    </script>
+</body>
+</html>
